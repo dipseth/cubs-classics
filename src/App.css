@@ -38,13 +38,65 @@
   min-height: 0;
 }
 
-.video-wrapper iframe {
+
+/* YouTube IFrame API player fills container */
+.player-container {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+.player-container iframe {
+  width: 100%;
+  height: 100%;
   border: none;
+}
+
+/* "Tap to hear the game" overlay — big, obvious, one-time */
+.unmute-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(14, 51, 134, 0.92);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  font-family: inherit;
+  z-index: 10;
+}
+
+.unmute-icon {
+  font-size: 2.5rem;
+}
+
+.unmute-text {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .unmute-overlay {
+    padding: 12px;
+  }
+
+  .unmute-icon {
+    font-size: 1.5rem;
+  }
+
+  .unmute-text {
+    font-size: 1.2rem;
+  }
 }
 
 /* Now playing — large, high contrast, no clutter */
