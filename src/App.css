@@ -1,41 +1,20 @@
+/* Full-viewport layout: video on top, button at bottom */
 .app {
-  padding: 24px 0 64px;
-}
-
-/* Header */
-.header {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--text-bright);
-  margin: 0 0 8px;
-}
-
-.subtitle {
-  color: var(--text);
-  font-size: 1.1rem;
-}
-
-/* Video Player */
-.player-section {
-  margin-bottom: 40px;
-}
-
-.video-container {
-  position: relative;
-  width: 100%;
-  padding-bottom: 56.25%; /* 16:9 */
-  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
   overflow: hidden;
-  background: #000;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.video-container iframe {
+/* Video fills available space */
+.video-wrapper {
+  flex: 1;
+  position: relative;
+  background: #000;
+  min-height: 0;
+}
+
+.video-wrapper iframe {
   position: absolute;
   top: 0;
   left: 0;
@@ -44,124 +23,94 @@
   border: none;
 }
 
+/* Current video title — simple, readable */
 .now-playing {
-  margin-top: 16px;
-}
-
-.now-playing h2 {
-  font-size: 1.4rem;
+  padding: 12px 20px;
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-bright);
-  margin: 0 0 4px;
-}
-
-.now-playing .meta {
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-/* Tag Chips */
-.tag-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.chip {
-  padding: 6px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.chip:hover {
-  background: var(--surface-hover);
-  color: var(--text-bright);
-  border-color: var(--accent);
-}
-
-.chip-active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
-.chip-active:hover {
-  background: var(--accent);
-  color: #fff;
-}
-
-/* Game Grid */
-.game-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.game-card {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-  padding: 0;
-  color: inherit;
-  font: inherit;
-}
-
-.game-card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-.game-card-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 4px 20px var(--accent-glow);
-}
-
-.game-thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  display: block;
-}
-
-.game-info {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.game-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-bright);
+  text-align: center;
   line-height: 1.3;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
-.game-meta {
-  font-size: 0.8rem;
-  color: var(--text);
+/* Big, obvious, single action button */
+.next-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 24px;
+  min-height: 90px;
+  background: #0e3386;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  font-family: inherit;
 }
 
-/* Responsive */
-@media (max-width: 640px) {
-  .header h1 {
-    font-size: 1.8rem;
+.next-button:hover,
+.next-button:focus-visible {
+  background: #1a47a8;
+}
+
+.next-button:active {
+  background: #0a2560;
+}
+
+.next-button:disabled {
+  background: #333;
+  cursor: default;
+}
+
+.next-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  opacity: 0.8;
+}
+
+.next-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  max-width: 400px;
+}
+
+/* Landscape orientation on mobile — more video, less padding */
+@media (orientation: landscape) and (max-height: 500px) {
+  .now-playing {
+    padding: 6px 16px;
+    font-size: 0.9rem;
   }
 
-  .game-grid {
-    grid-template-columns: 1fr;
+  .next-button {
+    flex-direction: row;
+    gap: 12px;
+    padding: 12px 20px;
+    min-height: 56px;
+  }
+
+  .next-title {
+    font-size: 1rem;
+  }
+}
+
+/* Very small screens — tighten up */
+@media (max-width: 380px) {
+  .now-playing {
+    font-size: 0.95rem;
+    padding: 10px 14px;
+  }
+
+  .next-title {
+    font-size: 1rem;
   }
 }

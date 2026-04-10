@@ -1,160 +1,132 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 
-interface Game {
-  id: string
+interface Video {
   videoId: string
   title: string
-  year: number
-  opponent: string
-  tags: string[]
 }
 
-const GAMES: Game[] = [
-  {
-    id: 'game7-2016',
-    videoId: 'MJ3oGSBTjCU',
-    title: 'Game 7 — 2016 World Series',
-    year: 2016,
-    opponent: 'Indians',
-    tags: ['World Series', 'Postseason'],
-  },
-  {
-    id: 'game6-2016',
-    videoId: '1KxiDlJDpFE',
-    title: 'Game 6 — 2016 World Series',
-    year: 2016,
-    opponent: 'Indians',
-    tags: ['World Series', 'Postseason'],
-  },
-  {
-    id: 'game5-2016',
-    videoId: 'aTMEtxLIPH4',
-    title: 'Game 5 — 2016 World Series',
-    year: 2016,
-    opponent: 'Indians',
-    tags: ['World Series', 'Postseason'],
-  },
-  {
-    id: 'nlcs-2016',
-    videoId: 'WlGt3fDsMVg',
-    title: 'NLCS Game 6 — Cubs clinch pennant',
-    year: 2016,
-    opponent: 'Dodgers',
-    tags: ['NLCS', 'Postseason'],
-  },
-  {
-    id: 'nlds-2015',
-    videoId: 'joaLiRn5gAo',
-    title: 'NLDS Game 4 — Schwarber goes deep',
-    year: 2015,
-    opponent: 'Cardinals',
-    tags: ['NLDS', 'Postseason'],
-  },
-  {
-    id: 'kerry-wood-20k',
-    videoId: 'wYMPFpeid0M',
-    title: 'Kerry Wood 20 Strikeout Game',
-    year: 1998,
-    opponent: 'Astros',
-    tags: ['Classic', 'Regular Season'],
-  },
-  {
-    id: 'sandberg-game',
-    videoId: '5_tbZl5cDww',
-    title: 'Ryne Sandberg Game — 2 game-tying HRs',
-    year: 1984,
-    opponent: 'Cardinals',
-    tags: ['Classic', 'Regular Season'],
-  },
-  {
-    id: 'bartman-game',
-    videoId: 'vq8G81oOHhE',
-    title: 'NLCS Game 6 — The Bartman Game',
-    year: 2003,
-    opponent: 'Marlins',
-    tags: ['NLCS', 'Postseason', 'Infamous'],
-  },
+// Seed playlist — guaranteed to work without API
+const SEED_VIDEOS: Video[] = [
+  { videoId: 'MJ3oGSBTjCU', title: 'Game 7 — 2016 World Series' },
+  { videoId: '1KxiDlJDpFE', title: 'Game 6 — 2016 World Series' },
+  { videoId: 'aTMEtxLIPH4', title: 'Game 5 — 2016 World Series' },
+  { videoId: 'WlGt3fDsMVg', title: 'NLCS Game 6 — Cubs clinch 2016 pennant' },
+  { videoId: 'joaLiRn5gAo', title: '2015 NLDS Game 4 — Schwarber goes deep' },
+  { videoId: 'wYMPFpeid0M', title: 'Kerry Wood 20 Strikeout Game (1998)' },
+  { videoId: '5_tbZl5cDww', title: 'Ryne Sandberg Game (1984)' },
+  { videoId: 'vq8G81oOHhE', title: 'The Bartman Game — 2003 NLCS Game 6' },
 ]
 
-const ALL_TAGS = [...new Set(GAMES.flatMap((g) => g.tags))].sort()
+const API_BASE = '/api/youtube'
 
 const App = () => {
-  const [activeGame, setActiveGame] = useState<Game>(GAMES[0])
-  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [current, setCurrent] = useState<Video>(SEED_VIDEOS[0])
+  const [next, setNext] = useState<Video>(SEED_VIDEOS[1])
+  const [queue, setQueue] = useState<Video[]>(SEED_VIDEOS.slice(2))
+  const [loading, setLoading] = useState(false)
 
-  const filteredGames = activeTag
-    ? GAMES.filter((g) => g.tags.includes(activeTag))
-    : GAMES
+  // Try to fetch a related video from the API, fall back to seed queue
+  const fetchRelated = useCallback(async (videoId: string): Promise<Video[]> => {
+    try {
+      const res = await fetch(`${API_BASE}?action=related&videoId=${videoId}`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return (data.videos || []).map((v: { videoId: string; title: string }) => ({
+        videoId: v.videoId,
+        title: cleanTitle(v.title),
+      }))
+    } catch {
+      return []
+    }
+  }, [])
+
+  // When current video changes, pre-fetch the next recommendation
+  useEffect(() => {
+    let cancelled = false
+
+    const loadNext = async () => {
+      setLoading(true)
+
+      // Try API first
+      const related = await fetchRelated(current.videoId)
+      if (cancelled) return
+
+      // Filter out current and next to avoid repeats
+      const fresh = related.filter(
+        (v) => v.videoId !== current.videoId && v.videoId !== next?.videoId
+      )
+
+      if (fresh.length > 0) {
+        // Merge API results into queue (fresh ones first, then remaining seed)
+        setQueue((prev) => {
+          const existing = new Set(prev.map((v) => v.videoId))
+          const newOnes = fresh.filter((v) => !existing.has(v.videoId))
+          return [...newOnes, ...prev]
+        })
+      }
+
+      setLoading(false)
+    }
+
+    loadNext()
+    return () => { cancelled = true }
+  }, [current.videoId, fetchRelated]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const goNext = () => {
+    if (!next) return
+
+    const newCurrent = next
+    const remaining = queue.filter((v) => v.videoId !== newCurrent.videoId)
+
+    // Pick next from queue, or loop back to seeds
+    const upNext = remaining.length > 0
+      ? remaining[0]
+      : SEED_VIDEOS.find((v) => v.videoId !== newCurrent.videoId) || SEED_VIDEOS[0]
+
+    const newQueue = remaining.length > 0
+      ? remaining.slice(1)
+      : SEED_VIDEOS.filter((v) => v.videoId !== newCurrent.videoId && v.videoId !== upNext.videoId)
+
+    setCurrent(newCurrent)
+    setNext(upNext)
+    setQueue(newQueue)
+  }
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>🐻 Cubs Classics</h1>
-        <p className="subtitle">Relive the greatest moments in Chicago Cubs history</p>
-      </header>
+      {/* Video — takes up as much space as possible */}
+      <div className="video-wrapper">
+        <iframe
+          src={`https://www.youtube.com/embed/${current.videoId}?rel=0&modestbranding=1&playsinline=1&autoplay=1`}
+          title={current.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          allowFullScreen
+        />
+      </div>
 
-      <main className="main">
-        <section className="player-section">
-          <div className="video-container">
-            <iframe
-              src={`https://www.youtube.com/embed/${activeGame.videoId}?rel=0&modestbranding=1&hd=1`}
-              title={activeGame.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
-          </div>
-          <div className="now-playing">
-            <h2>{activeGame.title}</h2>
-            <span className="meta">
-              {activeGame.year} &middot; vs {activeGame.opponent}
-            </span>
-          </div>
-        </section>
+      {/* Now playing label */}
+      <div className="now-playing">
+        {current.title}
+      </div>
 
-        <section className="games-section">
-          <div className="tag-filters">
-            <button
-              className={`chip ${activeTag === null ? 'chip-active' : ''}`}
-              onClick={() => setActiveTag(null)}
-            >
-              All
-            </button>
-            {ALL_TAGS.map((tag) => (
-              <button
-                key={tag}
-                className={`chip ${activeTag === tag ? 'chip-active' : ''}`}
-                onClick={() => setActiveTag(tag === activeTag ? null : tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-
-          <div className="game-grid">
-            {filteredGames.map((game) => (
-              <button
-                key={game.id}
-                className={`game-card ${game.id === activeGame.id ? 'game-card-active' : ''}`}
-                onClick={() => setActiveGame(game)}
-              >
-                <img
-                  src={`https://img.youtube.com/vi/${game.videoId}/mqdefault.jpg`}
-                  alt={game.title}
-                  className="game-thumb"
-                  loading="lazy"
-                />
-                <div className="game-info">
-                  <span className="game-title">{game.title}</span>
-                  <span className="game-meta">{game.year} &middot; vs {game.opponent}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-      </main>
+      {/* Single big "Next" button */}
+      <button className="next-button" onClick={goNext} disabled={loading && !next}>
+        <span className="next-label">Next Game</span>
+        <span className="next-title">{next?.title || 'Loading...'}</span>
+      </button>
     </div>
   )
+}
+
+/** Strip HTML entities and YouTube title noise */
+function cleanTitle(raw: string): string {
+  const el = document.createElement('span')
+  el.innerHTML = raw
+  return (el.textContent || raw)
+    .replace(/\s*\|.*$/, '')
+    .replace(/\s*-\s*YouTube\s*$/i, '')
+    .trim()
 }
 
 export default App
