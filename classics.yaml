@@ -1,0 +1,33 @@
+# Curated Cubs Classics — these always appear in the playlist
+#
+# Add games by YouTube video ID or full URL. Both formats work:
+#   - 9CaDeppJDnU
+#   - https://youtu.be/9CaDeppJDnU
+#   - https://www.youtube.com/watch?v=9CaDeppJDnU
+#
+# Give each a short, clear title (shown on the "Next Game" button).
+
+classics:
+  - url: https://youtu.be/9CaDeppJDnU
+    title: "2016 World Series Game 7 — Cubs Win It All"
+
+  - url: https://youtu.be/Cic9qAra2Eg
+    title: "2016 World Series Game 1"
+
+  - url: https://youtu.be/IeW_MgzcdCQ
+    title: "2016 World Series Game 5"
+
+  - url: https://youtu.be/gSLDM99Vh5E
+    title: "Dodgers vs Cubs — July 1986"
+
+  - url: https://youtu.be/z1M4_DVjaKg
+    title: "Cubs 9, Phillies 2 — August 1989"
+
+  - url: https://youtu.be/izX8n9lw_kQ
+    title: "Phillies 23, Cubs 22 — May 1979"
+
+  - url: https://youtu.be/sqqI2YtaBv8
+    title: "White Sox vs Cubs — Spring Training 2024"
+
+  - url: https://youtu.be/ltGFuxMx04w
+    title: "Diamondbacks vs Cubs — Wild 8th Inning at Wrigley"

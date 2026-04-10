@@ -1,26 +1,44 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
+import CLASSICS from './classics.json'
 
 interface Video {
   videoId: string
   title: string
 }
 
-// Verified seed playlist — fallback if API is unavailable
-const SEED_VIDEOS: Video[] = [
-  { videoId: '9CaDeppJDnU', title: '2016 World Series Game 7 — Cubs Win It All' },
-  { videoId: 'Cic9qAra2Eg', title: '2016 World Series Game 1' },
-  { videoId: 'IeW_MgzcdCQ', title: '2016 World Series Game 5' },
-  { videoId: 'gSLDM99Vh5E', title: 'Dodgers vs Cubs — July 1986' },
-  { videoId: 'z1M4_DVjaKg', title: 'Cubs 9, Phillies 2 — August 1989' },
-  { videoId: 'lHTB1oUedMI', title: 'Reds at Cubs — WGN Broadcast 1986' },
-  { videoId: 'izX8n9lw_kQ', title: 'Phillies 23, Cubs 22 — May 1979' },
-  { videoId: 'mliob1U9IMA', title: 'Dodgers vs Cubs — Tokyo Series' },
-  { videoId: 'sqqI2YtaBv8', title: 'White Sox vs Cubs — Spring Training 2024' },
-  { videoId: 'ltGFuxMx04w', title: 'Diamondbacks vs Cubs — Wild 8th Inning' },
-]
+// Pinned classics from classics.yaml — always in the playlist
+const PINNED: Video[] = CLASSICS as Video[]
 
 const API_BASE = '/api/youtube'
+
+/** Fisher-Yates shuffle (returns new array) */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function dedup(videos: Video[]): Video[] {
+  const seen = new Set<string>()
+  return videos.filter((v) => {
+    if (seen.has(v.videoId)) return false
+    seen.add(v.videoId)
+    return true
+  })
+}
+
+function cleanTitle(raw: string): string {
+  const el = document.createElement('span')
+  el.innerHTML = raw
+  return (el.textContent || raw)
+    .replace(/\s*\|.*$/, '')
+    .replace(/\s*-\s*YouTube\s*$/i, '')
+    .trim()
+}
 
 // Cubs logo — persistent identity anchor
 const CubsLogo = () => (
@@ -32,9 +50,11 @@ const CubsLogo = () => (
 )
 
 const App = () => {
-  const [current, setCurrent] = useState<Video>(SEED_VIDEOS[0])
-  const [next, setNext] = useState<Video>(SEED_VIDEOS[1])
-  const [queue, setQueue] = useState<Video[]>(SEED_VIDEOS.slice(2))
+  // Start with a shuffled pinned list so every session feels different
+  const [playlist] = useState<Video[]>(() => shuffle(PINNED))
+  const [current, setCurrent] = useState<Video>(() => playlist[0])
+  const [next, setNext] = useState<Video>(() => playlist[1])
+  const [queue, setQueue] = useState<Video[]>(() => playlist.slice(2))
   const [muted, setMuted] = useState(true)
   const playerRef = useRef<YTPlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -55,7 +75,6 @@ const App = () => {
         playerRef.current = null
       }
 
-      // Clear the container and add a fresh div for the player
       if (containerRef.current) {
         containerRef.current.innerHTML = '<div id="yt-player"></div>'
       }
@@ -71,8 +90,6 @@ const App = () => {
         },
         events: {
           onReady: (e: YTPlayerEvent) => {
-            // If unmuted, ensure it plays (browser may block — that's OK,
-            // the overlay will catch it on next tap)
             if (!muted) {
               e.target.unMute()
               e.target.setVolume(80)
@@ -83,7 +100,6 @@ const App = () => {
       })
     }
 
-    // Wait for YT API to be ready
     if (window.YT && window.YT.Player) {
       create()
     } else {
@@ -100,7 +116,6 @@ const App = () => {
 
   const handleUnmute = () => {
     setMuted(false)
-    // Also unmute the current player immediately
     if (playerRef.current) {
       playerRef.current.unMute()
       playerRef.current.setVolume(80)
@@ -123,16 +138,18 @@ const App = () => {
     }
   }, [])
 
-  // On mount, try to load fresh videos from API
+  // On mount, fetch fresh videos from API and merge with pinned classics
   useEffect(() => {
     let cancelled = false
     const bootstrap = async () => {
       const fresh = await fetchVideos('chicago cubs full game classic')
       if (cancelled || fresh.length === 0) return
-      const all = dedup([...fresh, ...SEED_VIDEOS])
-      setCurrent(all[0])
-      setNext(all[1] || SEED_VIDEOS[1])
-      setQueue(all.slice(2))
+
+      // Merge: shuffled pinned classics first, then shuffled API results
+      setQueue((prev) => {
+        const merged = dedup([...prev, ...shuffle(fresh)])
+        return merged
+      })
     }
     bootstrap()
     return () => { cancelled = true }
@@ -148,7 +165,11 @@ const App = () => {
         (v) => v.videoId !== current.videoId && v.videoId !== next?.videoId
       )
       if (fresh.length > 0) {
-        setQueue((prev) => dedup([...fresh, ...prev]))
+        // Insert related videos at random positions in the queue
+        setQueue((prev) => {
+          const merged = dedup([...prev, ...fresh])
+          return shuffle(merged)
+        })
       }
     }
     loadRelated()
@@ -156,16 +177,18 @@ const App = () => {
   }, [current.videoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goNext = () => {
-    const newCurrent = next || SEED_VIDEOS[0]
+    const newCurrent = next || PINNED[0]
     const remaining = queue.filter((v) => v.videoId !== newCurrent.videoId)
-    const upNext = remaining.length > 0
-      ? remaining[0]
-      : SEED_VIDEOS.find((v) => v.videoId !== newCurrent.videoId) || SEED_VIDEOS[0]
-    const newQueue = remaining.length > 0
-      ? remaining.slice(1)
-      : SEED_VIDEOS.filter((v) =>
-          v.videoId !== newCurrent.videoId && v.videoId !== upNext.videoId
-        )
+
+    // If queue runs low, re-inject shuffled pinned classics
+    const pool = remaining.length > 2
+      ? remaining
+      : dedup([...remaining, ...shuffle(PINNED)])
+          .filter((v) => v.videoId !== newCurrent.videoId)
+
+    const upNext = pool[0] || PINNED[0]
+    const newQueue = pool.slice(1)
+
     setCurrent(newCurrent)
     setNext(upNext)
     setQueue(newQueue)
@@ -173,19 +196,16 @@ const App = () => {
 
   return (
     <div className="app">
-      {/* Orienting header — always visible */}
       <div className="header-bar">
         <CubsLogo />
         <span className="header-title">Cubs Classics</span>
       </div>
 
-      {/* Video fills all available space */}
       <div className="video-wrapper">
         <div ref={containerRef} className="player-container">
           <div id="yt-player" />
         </div>
 
-        {/* Unmute overlay — one tap, then gone forever */}
         {muted && (
           <button className="unmute-overlay" onClick={handleUnmute}>
             <span className="unmute-icon">🔊</span>
@@ -194,36 +214,16 @@ const App = () => {
         )}
       </div>
 
-      {/* Now playing */}
       <div className="now-playing">
         {current.title}
       </div>
 
-      {/* THE one button */}
       <button className="next-button" onClick={goNext}>
         <span className="next-label">Next Game</span>
-        <span className="next-title">{next?.title || SEED_VIDEOS[0].title}</span>
+        <span className="next-title">{next?.title || PINNED[0].title}</span>
       </button>
     </div>
   )
-}
-
-function cleanTitle(raw: string): string {
-  const el = document.createElement('span')
-  el.innerHTML = raw
-  return (el.textContent || raw)
-    .replace(/\s*\|.*$/, '')
-    .replace(/\s*-\s*YouTube\s*$/i, '')
-    .trim()
-}
-
-function dedup(videos: Video[]): Video[] {
-  const seen = new Set<string>()
-  return videos.filter((v) => {
-    if (seen.has(v.videoId)) return false
-    seen.add(v.videoId)
-    return true
-  })
 }
 
 export default App
