@@ -6,21 +6,23 @@ interface Video {
   title: string
 }
 
-// Curated playlist — loops forever, no "watched" tracking
+// Verified seed playlist — fallback if API is unavailable
 const SEED_VIDEOS: Video[] = [
-  { videoId: 'MJ3oGSBTjCU', title: 'Game 7 — 2016 World Series' },
-  { videoId: '1KxiDlJDpFE', title: 'Game 6 — 2016 World Series' },
-  { videoId: 'aTMEtxLIPH4', title: 'Game 5 — 2016 World Series' },
-  { videoId: 'WlGt3fDsMVg', title: 'Cubs Clinch 2016 Pennant' },
-  { videoId: 'joaLiRn5gAo', title: 'Schwarber Goes Deep — 2015' },
-  { videoId: 'wYMPFpeid0M', title: 'Kerry Wood 20 Strikeouts' },
-  { videoId: '5_tbZl5cDww', title: 'Ryne Sandberg Game — 1984' },
-  { videoId: 'vq8G81oOHhE', title: 'The Bartman Game — 2003' },
+  { videoId: '9CaDeppJDnU', title: '2016 World Series Game 7 — Cubs Win It All' },
+  { videoId: 'Cic9qAra2Eg', title: '2016 World Series Game 1' },
+  { videoId: 'IeW_MgzcdCQ', title: '2016 World Series Game 5' },
+  { videoId: 'gSLDM99Vh5E', title: 'Dodgers vs Cubs — July 1986' },
+  { videoId: 'z1M4_DVjaKg', title: 'Cubs 9, Phillies 2 — August 1989' },
+  { videoId: 'lHTB1oUedMI', title: 'Reds at Cubs — WGN Broadcast 1986' },
+  { videoId: 'izX8n9lw_kQ', title: 'Phillies 23, Cubs 22 — May 1979' },
+  { videoId: 'mliob1U9IMA', title: 'Dodgers vs Cubs — Tokyo Series' },
+  { videoId: 'sqqI2YtaBv8', title: 'White Sox vs Cubs — Spring Training 2024' },
+  { videoId: 'ltGFuxMx04w', title: 'Diamondbacks vs Cubs — Wild 8th Inning' },
 ]
 
 const API_BASE = '/api/youtube'
 
-// Cubs logo SVG — always visible as an identity anchor
+// Cubs logo — persistent identity anchor
 const CubsLogo = () => (
   <svg viewBox="0 0 100 100" className="cubs-logo" aria-label="Chicago Cubs">
     <circle cx="50" cy="50" r="48" fill="#0e3386" stroke="#cc3433" strokeWidth="4" />
@@ -33,10 +35,11 @@ const App = () => {
   const [current, setCurrent] = useState<Video>(SEED_VIDEOS[0])
   const [next, setNext] = useState<Video>(SEED_VIDEOS[1])
   const [queue, setQueue] = useState<Video[]>(SEED_VIDEOS.slice(2))
-  // Silently fetch related videos from API, merge into queue
-  const fetchRelated = useCallback(async (videoId: string): Promise<Video[]> => {
+
+  // Fetch videos from API — used for both initial load and related
+  const fetchVideos = useCallback(async (query: string): Promise<Video[]> => {
     try {
-      const res = await fetch(`${API_BASE}?action=related&videoId=${videoId}`)
+      const res = await fetch(`${API_BASE}?action=search&q=${encodeURIComponent(query)}`)
       if (!res.ok) return []
       const data = await res.json()
       return (data.videos || []).map((v: { videoId: string; title: string }) => ({
@@ -48,12 +51,31 @@ const App = () => {
     }
   }, [])
 
-  // Pre-fetch related videos when current changes
+  // On mount, try to load fresh videos from API
+  useEffect(() => {
+    let cancelled = false
+
+    const bootstrap = async () => {
+      const fresh = await fetchVideos('chicago cubs full game classic')
+      if (cancelled || fresh.length === 0) return
+
+      // Use API results but keep seeds as backup
+      const all = dedup([...fresh, ...SEED_VIDEOS])
+      setCurrent(all[0])
+      setNext(all[1] || SEED_VIDEOS[1])
+      setQueue(all.slice(2))
+    }
+
+    bootstrap()
+    return () => { cancelled = true }
+  }, [fetchVideos])
+
+  // When current video changes, fetch related to enrich queue
   useEffect(() => {
     let cancelled = false
 
     const loadRelated = async () => {
-      const related = await fetchRelated(current.videoId)
+      const related = await fetchVideos(`cubs ${current.title}`)
       if (cancelled) return
 
       const fresh = related.filter(
@@ -61,17 +83,13 @@ const App = () => {
       )
 
       if (fresh.length > 0) {
-        setQueue((prev) => {
-          const existing = new Set(prev.map((v) => v.videoId))
-          const newOnes = fresh.filter((v) => !existing.has(v.videoId))
-          return [...newOnes, ...prev]
-        })
+        setQueue((prev) => dedup([...fresh, ...prev]))
       }
     }
 
     loadRelated()
     return () => { cancelled = true }
-  }, [current.videoId, fetchRelated]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [current.videoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goNext = () => {
     const newCurrent = next || SEED_VIDEOS[0]
@@ -83,7 +101,9 @@ const App = () => {
 
     const newQueue = remaining.length > 0
       ? remaining.slice(1)
-      : SEED_VIDEOS.filter((v) => v.videoId !== newCurrent.videoId && v.videoId !== upNext.videoId)
+      : SEED_VIDEOS.filter((v) =>
+          v.videoId !== newCurrent.videoId && v.videoId !== upNext.videoId
+        )
 
     setCurrent(newCurrent)
     setNext(upNext)
@@ -92,7 +112,7 @@ const App = () => {
 
   return (
     <div className="app">
-      {/* Orienting header — Cubs logo + simple label */}
+      {/* Orienting header — always visible */}
       <div className="header-bar">
         <CubsLogo />
         <span className="header-title">Cubs Classics</span>
@@ -109,7 +129,7 @@ const App = () => {
         />
       </div>
 
-      {/* Now playing — large, readable */}
+      {/* Now playing */}
       <div className="now-playing">
         {current.title}
       </div>
@@ -130,6 +150,15 @@ function cleanTitle(raw: string): string {
     .replace(/\s*\|.*$/, '')
     .replace(/\s*-\s*YouTube\s*$/i, '')
     .trim()
+}
+
+function dedup(videos: Video[]): Video[] {
+  const seen = new Set<string>()
+  return videos.filter((v) => {
+    if (seen.has(v.videoId)) return false
+    seen.add(v.videoId)
+    return true
+  })
 }
 
 export default App
