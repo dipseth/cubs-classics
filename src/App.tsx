@@ -122,7 +122,7 @@ const App = () => {
       <div className="video-wrapper">
         <iframe
           key={current.videoId}
-          src={`https://www.youtube.com/embed/${current.videoId}?rel=0&modestbranding=1&playsinline=1&autoplay=1`}
+          src={`https://www.youtube.com/embed/${current.videoId}?rel=0&modestbranding=1&playsinline=1&autoplay=1&mute=1`}
           title={current.title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
